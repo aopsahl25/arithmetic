@@ -9,24 +9,30 @@ import lark
 grammar = r"""
     start: sum
 
-    ?sum: product
-        | sum "+" product   -> add
-        | sum "-" product   -> sub
+    ?sum: term
+        | sum "+" term   -> add
+        | sum "-" term   -> sub
 
-    ?product: atom
-        | product "*" atom  -> mul
-        | product "/" atom  -> div
+    ?term: factor
+        | term "*" factor  -> mul
+        | term "%" factor  -> mod
+        | term "/" factor -> div
 
-    ?atom: NUMBER           -> number
-        | "(" sum ")"       -> paren
+    ?factor: atom
+        | factor "**" atom -> exp
+
+    ?atom: NUMBER            -> number
+        | "(" sum ")"        -> paren
+        | atom "(" sum ")"   -> implicit_mul  # Fix for implicit multiplication
 
     NUMBER: /-?[0-9]+/
 
     %import common.WS_INLINE
     %ignore WS_INLINE
 """
-parser = lark.Lark(grammar)
 
+
+parser = lark.Lark(grammar)
 
 class Interpreter(lark.visitors.Interpreter):
     '''
@@ -128,6 +134,55 @@ class Interpreter(lark.visitors.Interpreter):
     36
     '''
 
+    def visit(self, tree):
+        result = super().visit(tree)
+        if isinstance(result, list):
+            if result:  
+                return result[0]
+            else:
+                return None  
+        return result
+    def start(self, tree):
+        return self.visit(tree.children[0])
+    def add(self,tree):
+        v0 = self.visit(tree.children[0])
+        v1 = self.visit(tree.children[1])
+        return v0 + v1
+    def mul(self,tree):
+         v0 = self.visit(tree.children[0])
+         v1 = self.visit(tree.children[1])
+         return v0 * v1
+    def sub(self, tree):
+        v0 = self.visit(tree.children[0])  
+        v1 = self.visit(tree.children[1]) 
+        return v0-v1
+    def mod(self, tree):
+        v0 = self.visit(tree.children[0])  
+        v1 = self.visit(tree.children[1]) 
+        return v0 % v1
+    def exp(self, tree):
+        v0 = self.visit(tree.children[0]) 
+        v1 = self.visit(tree.children[1]) 
+        if v1 < 0:
+            if v0 == 0:
+                return 0
+            return 0  
+        else:
+            return int(v0 ** v1)  
+    def implicit_mul(self, tree):
+        v0 = self.visit(tree.children[0])
+        v1 = self.visit(tree.children[1])
+        return v0 * v1
+    def div(self, tree):
+        v0 = self.visit(tree.children[0])
+        v1 = self.visit(tree.children[1]) 
+        return v0 / v1
+    def number(self, tree):
+        return int(tree.children[0].value)
+    def paren(self, tree):
+        return self.visit(tree.children[0])
+
+
 
 class Simplifier(lark.Transformer):
     '''
@@ -226,12 +281,33 @@ class Simplifier(lark.Transformer):
     >>> simplifier.transform(parser.parse("(1+2)(3(4))"))
     36
     '''
-
-
-########################################
-# other transformations
-########################################
-
+    def start(self, children):
+        return children[0]
+    def add(self, children):
+        return children[0] + children[1]
+    def sub(self, children):
+        return children[0] - children[1]
+    def mul(self, children):
+        return children[0] * children[1]
+    def mod(self, children):
+        return children[0] % children[1]
+    def exp(self, children):
+        base = children[0]
+        exp = children[1]
+        if exp < 0:
+            return 0
+        else:
+            return base ** exp
+    def div(self, children):
+        return children[0] / children[1] 
+    def number(self, children):
+        return int(children[0].value)
+    def implicit_mul(self, children):
+        return children[0] * children[1]
+    def paren(self, children):
+        return children[0]
+    def paren(self, children):
+        return children[0]
 
 def minify(expr):
     '''
@@ -283,6 +359,65 @@ def minify(expr):
     '1+2*3+4*(5+6-7)'
     '''
 
+class ParenthesisRemover(lark.Transformer):
+    """
+    This transformer removes unnecessary parentheses while respecting operator precedence.
+    """
+
+    # # Operator precedence mapping
+    precedence = {
+        '+': 1,
+        '-': 1,
+        '*': 2,
+        '/': 2,
+        '%': 2,
+        '**': 3
+    }
+
+    def paren(self, children): #paren function should check to see if a child is inside a nested () - if it is, then remove parenthesis
+        pass
+
+    def add(self, children): # add checks to see if the operation inside the parenthesis is higher or lower on a list of operation precendence than the addition outside the parenthesis. if the operation is higher, then keep parenthesis, if it is lower, then remove
+        pass
+    
+    def mul(self, children): # mul checks to see if the operation inside the parenthesis is higher or lower on a list of operation precendence than the multiplication outside the parenthesis. if the operation is higher, then keep parenthesis, if it is lower, then remove
+        pass
+
+    def div(self, children): # div checks to see if the operation inside the parenthesis is higher or lower on a list of operation precendence than the division outside the parenthesis. if the operation is higher, then keep parenthesis, if it is lower, then remove
+        pass
+
+    def sub(self, children): # sub checks to see if the operation inside the parenthesis is higher or lower on a list of operation precendence than the subtraction outside the parenthesis. if the operation is higher, then keep parenthesis, if it is lower, then remove
+        pass
+
+# paren - check if child inside nested ()
+#when we have an operation then paranthesis - if thing inside parenthesis is above on list keep parenthesis, if not remove 
+#comparing node to child of the parenthesis 
+#if so - remove parenthesis - check if operation inside of paranthesis is a child - if yes then keep, if no then delete
+
+class Stringifier(lark.Transformer):
+    """
+    This transformer converts the simplified AST back into a string representation.
+    """
+
+    def start(self, children):
+        return children[0]
+    def add(self, children): 
+        return f"{children[0]}+{children[1]}"
+    def sub(self, children):
+        return f"{children[0]}-{children[1]}"
+    def mul(self, children):
+        return f"{children[0]}*{children[1]}"
+    def div(self, children):
+        return f"{children[0]}/{children[1]}"
+    def number(self, children):
+        return str(children[0])
+
+def minify(expr):
+    tree = parser.parse(expr)
+    tree = ParenthesisRemover().transform(tree)  # Apply parenthesis removal
+    return Stringifier().transform(tree)
+
+
 
 def infix_to_rpn(expr):
     '''
@@ -312,6 +447,39 @@ def infix_to_rpn(expr):
     '1 2 * 3 + 4 5 6 - * +'
     '''
 
+class InfixToRPN(lark.Transformer):
+    """
+    This transformer converts an infix arithmetic expression to Reverse Polish Notation (RPN).
+    """
+    def __init__(self):
+        self.output = []  
+    def add(self, children):
+        left, right = children
+        self.output.append('+')  
+    def sub(self, children):
+        left, right = children
+        self.output.append('-')  
+    def mul(self, children):
+        left, right = children
+        self.output.append('*')  
+    def div(self, children):
+        left, right = children
+        self.output.append('/') 
+    def number(self, children):
+        self.output.append(str(children[0]))
+    def paren(self, children):
+        return children[0]
+
+
+
+def infix_to_rpn(expr):
+    """
+    Convert an infix expression to reverse Polish notation (RPN).
+    """
+    tree = parser.parse(expr)
+    transformer = InfixToRPN()
+    transformer.transform(tree)
+    return " ".join(transformer.output)
 
 def eval_rpn(expr):
     '''
@@ -364,3 +532,5 @@ def eval_rpn(expr):
             stack.append(operators[token](v1, v2))
     assert len(stack) == 1
     return stack[0]
+
+
