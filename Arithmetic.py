@@ -309,6 +309,53 @@ class Simplifier(lark.Transformer):
     def paren(self, children):
         return children[0]
 
+
+class Remover_And_Stringifier(lark.Transformer):
+
+    def start(self, children):
+        return children[0]
+
+    def mul(self, children):
+        add = "+"
+        sub = "-"
+        if add in children[0] and add in children[1]:
+            children[0] = f"({children[0]})"
+            children[1] = f"({children[1]})"
+        elif add in children[0]:
+            children[0] = f"({children[0]})"
+        elif sub in children[0]:
+            children[0] = f"({children[0]})"
+        elif add in children[1]:
+            children[1] = f"({children[1]})"
+        elif sub in children[1]:
+            children[1] = f"({children[1]})"
+        return f"{children[0]}*{children[1]}"
+
+    def div(self, children):
+        add = "+"
+        sub = "-"
+        if add in children[0]:
+            children[0] = f"({children[0]})"
+        elif sub in children[0]:
+            children[0] = f"({children[0]})"
+        elif add in children[1]:
+            children[1] = f"({children[1]})"
+        elif sub in children[1]:
+            children[1] = f"({children[1]})"
+        return f"{children[0]}/{children[1]}"
+
+    def add(self, children):
+        return f"{children[0]}+{children[1]}"
+
+    def sub(self, children):
+        return f"{children[0]}-{children[1]}"
+
+    def paren(self, children):
+        return children[0]
+
+    def number(self, children):
+        return children[0].value
+
 def minify(expr):
     '''
     "Minifying" code is the process of removing unnecessary characters.
@@ -358,52 +405,6 @@ def minify(expr):
     >>> minify("1 + (((2)*(3)) + 4 * ((5 + 6) - 7))")
     '1+2*3+4*(5+6-7)'
     '''
-
-class Remover_And_Stringifier(lark.Transformer):
-
-    def start(self, children):
-        return children[0]
-
-    def mul(self, children):
-        add = "+"
-        sub = "-"
-        if add in children[0] and add in children[1]:
-            children[0] = f"({children[0]})"
-            children[1] = f"({children[1]})"
-        elif add in children[0]:
-            children[0] = f"({children[0]})"
-        elif sub in children[0]:
-            children[0] = f"({children[0]})"
-        elif add in children[1]:
-            children[1] = f"({children[1]})"
-        elif sub in children[1]:
-            children[1] = f"({children[1]})"
-        return f"{children[0]}*{children[1]}"
-
-    def div(self, children):
-        add = "+"
-        sub = "-"
-        if add in children[0]:
-            children[0] = f"({children[0]})"
-        elif sub in children[0]:
-            children[0] = f"({children[0]})"
-        elif add in children[1]:
-            children[1] = f"({children[1]})"
-        elif sub in children[1]:
-            children[1] = f"({children[1]})"
-        return f"{children[0]}/{children[1]}"
-
-    def add(self, children):
-        return f"{children[0]}+{children[1]}"
-
-    def sub(self, children):
-        return f"{children[0]}-{children[1]}"
-
-    def paren(self, children):
-        return children[0]
-
-    def number(self, children):
-        return children[0].value
 
 def minify(expr):
     tree = parser.parse(expr)
