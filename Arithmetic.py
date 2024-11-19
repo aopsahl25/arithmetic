@@ -23,7 +23,7 @@ grammar = r"""
 
     ?atom: NUMBER            -> number
         | "(" sum ")"        -> paren
-        | atom "(" sum ")"   -> implicit_mul  # Fix for implicit multiplication
+        | atom "(" sum ")"   -> implicit_mul  
 
     NUMBER: /-?[0-9]+/
 
@@ -351,7 +351,7 @@ def minify(expr):
     '1-2+3'
     >>> minify("(1 + 2)+(3 + 4)")
     '1+2+3+4'
-    >>> minify("(1 + 2)*(3 + 4)")
+    >>> minify("(1 + 2)*(3 + 4)") 
     '(1+2)*(3+4)'
     >>> minify("1 + (((2)*(3)) + 4)")
     '1+2*3+4'
@@ -359,64 +359,55 @@ def minify(expr):
     '1+2*3+4*(5+6-7)'
     '''
 
-class ParenthesisRemover(lark.Transformer):
-    """
-    This transformer removes unnecessary parentheses while respecting operator precedence.
-    """
-
-    # # Operator precedence mapping
-    precedence = {
-        '+': 1,
-        '-': 1,
-        '*': 2,
-        '/': 2,
-        '%': 2,
-        '**': 3
-    }
-
-    def paren(self, children): #paren function should check to see if a child is inside a nested () - if it is, then remove parenthesis
-        pass
-
-    def add(self, children): # add checks to see if the operation inside the parenthesis is higher or lower on a list of operation precendence than the addition outside the parenthesis. if the operation is higher, then keep parenthesis, if it is lower, then remove
-        pass
-    
-    def mul(self, children): # mul checks to see if the operation inside the parenthesis is higher or lower on a list of operation precendence than the multiplication outside the parenthesis. if the operation is higher, then keep parenthesis, if it is lower, then remove
-        pass
-
-    def div(self, children): # div checks to see if the operation inside the parenthesis is higher or lower on a list of operation precendence than the division outside the parenthesis. if the operation is higher, then keep parenthesis, if it is lower, then remove
-        pass
-
-    def sub(self, children): # sub checks to see if the operation inside the parenthesis is higher or lower on a list of operation precendence than the subtraction outside the parenthesis. if the operation is higher, then keep parenthesis, if it is lower, then remove
-        pass
-
-# paren - check if child inside nested ()
-#when we have an operation then paranthesis - if thing inside parenthesis is above on list keep parenthesis, if not remove 
-#comparing node to child of the parenthesis 
-#if so - remove parenthesis - check if operation inside of paranthesis is a child - if yes then keep, if no then delete
-
-class Stringifier(lark.Transformer):
-    """
-    This transformer converts the simplified AST back into a string representation.
-    """
+class Remover_And_Stringifier(lark.Transformer):
 
     def start(self, children):
         return children[0]
-    def add(self, children): 
+
+    def mul(self, children):
+        add = "+"
+        sub = "-"
+        if add in children[0] and add in children[1]:
+            children[0] = f"({children[0]})"
+            children[1] = f"({children[1]})"
+        elif add in children[0]:
+            children[0] = f"({children[0]})"
+        elif sub in children[0]:
+            children[0] = f"({children[0]})"
+        elif add in children[1]:
+            children[1] = f"({children[1]})"
+        elif sub in children[1]:
+            children[1] = f"({children[1]})"
+        return f"{children[0]}*{children[1]}"
+
+    def div(self, children):
+        add = "+"
+        sub = "-"
+        if add in children[0]:
+            children[0] = f"({children[0]})"
+        elif sub in children[0]:
+            children[0] = f"({children[0]})"
+        elif add in children[1]:
+            children[1] = f"({children[1]})"
+        elif sub in children[1]:
+            children[1] = f"({children[1]})"
+        return f"{children[0]}/{children[1]}"
+
+    def add(self, children):
         return f"{children[0]}+{children[1]}"
+
     def sub(self, children):
         return f"{children[0]}-{children[1]}"
-    def mul(self, children):
-        return f"{children[0]}*{children[1]}"
-    def div(self, children):
-        return f"{children[0]}/{children[1]}"
+
+    def paren(self, children):
+        return children[0]
+
     def number(self, children):
-        return str(children[0])
+        return children[0].value
 
 def minify(expr):
     tree = parser.parse(expr)
-    tree = ParenthesisRemover().transform(tree)  # Apply parenthesis removal
-    return Stringifier().transform(tree)
-
+    return Remover_And_Stringifier().transform(tree)
 
 
 def infix_to_rpn(expr):
