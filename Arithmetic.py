@@ -309,6 +309,7 @@ class Simplifier(lark.Transformer):
     def paren(self, children):
         return children[0]
 
+#class created for minify exercise, but moved doc tests down so they would run with the minify function
 
 class Remover_And_Stringifier(lark.Transformer):
 
