@@ -406,7 +406,6 @@ def minify(expr):
     '1+2*3+4*(5+6-7)'
     '''
 
-def minify(expr):
     tree = parser.parse(expr)
     return Remover_And_Stringifier().transform(tree)
 
